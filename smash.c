@@ -40,7 +40,7 @@ void printWD(char **args, int num_args, int i){
 }
 
 int forkRedirect(char **args, int num_args, int i){
-    printf("Starting from %d\n", getpid());
+    //printf("Starting from %d\n", getpid());
     int rc = fork();
 
     if(rc == 0){
@@ -69,28 +69,27 @@ int redirection(char* cmd1[], char* cmd2[]){
     int pid = fork();
     
     
-    // if(pid == 0){
+    if(pid == 0){
         if ((newfd = open(cmd2[0], O_CREAT|O_TRUNC|O_WRONLY, 0644)) < 0) {
             perror(cmd2[0]);	/* open failed */
             exit(1);
         }
-        
-        printf("%s\n", cmd1[0]);
+        printf("%s\n", cmd2[0]);
         dup2(newfd, 1);
         close(newfd);
-        printf("%s\n", cmd1[0]);
+        printf("%s\n", cmd2[0]); 
         execv(cmd1[0], cmd1);
         printf("%s\n", cmd1[0]);
         perror(cmd1[0]);
             
         
-    // }
+    }
         
 
-    // else{
-    //     int status;
-    //     int wait_rc = waitpid(pid, &status, 0);
-    // }
+    else{
+        int status;
+        int wait_rc = waitpid(pid, &status, 0);
+    }
 
 
 	return 0;
@@ -206,18 +205,26 @@ void specialProcessHelper(char **args, int num_args){
                 //printf("%s\n", cmd1[a]);
             }
 
+            for(int b = i; b < buffer; b++){
+                cmd1[b] = NULL;
+            }
+
             cmd2[0] = malloc(sizeof(buffer));
             cmd2[0] = args[i+1];
-            //printf("%s\n", cmd2[0]);
-            
-            redirection(cmd1, cmd2);
+
+            for(int b = 1; b < buffer; b++){
+                cmd2[b] = NULL;
+            }
         }
+        
 
         // Piping
         // else if(strcmp(args[i], "|") == 0){
         //     piping(args, num_args, i);
         // }
     }
+
+    redirection(cmd1, cmd2);
 }
         
 
@@ -225,60 +232,101 @@ int main(){
 
     char** args = NULL;
     int num_args = 0;
-    char** tempArgs = NULL;
-    int temp_num_args = 0;
     size_t buffer = 100;
     size_t size;
-    char commands[buffer];
+    char* commands;
     char* c = commands;
     size_t input;
+    char** tempArgs = malloc(sizeof(buffer));
+    int temp_num_args = 0;
     int specialFlag = 0;
+    int argc = 1;
+    char* temp;
+    int multi = 0;
+    int counter;
+    
 
     
 
     while(1){
-        printf("smash> ");
+        fprintf(stdout, "smash> ");
+        fflush(stdout);
         input = getline(&c, &buffer, stdin);
 
+        //char* comm;
 
-        if(input != -1 && lexer(commands, &args, &num_args) != -1){
-
-            specialProcessHelper(args, num_args);
-
-            // for(int i = 0; i < num_args; i++){
-            //     if(strcmp(args[i], ";") == 0){
-            //         for(int a = 0; a < i; a++){
-            //             args[a] = args[a];
-            //         }
-            //         if(specialFlag == 0){
-            //             processHelper(args, num_args);
-            //         }
-
-            //         else{
-            //             specialProcessHelper(args, num_args);
-            //         }
-            //     }
-                    
-                    
-            //     if(strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0){
-            //         specialFlag = 1;
-            //     }
-
-            //     if(specialFlag == 0){
-            //         processHelper(args, num_args);
-            //     }
-
-            //     else{
-            //         specialProcessHelper(args, num_args);
-            //     }
-
-            // } 
-               
+        if(strchr(c, ';') != NULL)
+        {
+            commands = strtok_r(c, ";", &temp);
+            multi = 1;
         }
+
+        while(commands != NULL || multi == 0){
+            if(input != -1 && lexer(c, &args, &num_args) != -1){
+
+                for(int i = 0; i < num_args; i++){
+                    if(strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0){
+                        specialFlag = 1;
+                        specialProcessHelper(args, num_args);
+                    }
+
+                    if(specialFlag == 0){
+                        processHelper(args, num_args);
+                    }
+
+                    counter++;
+                }
+                
+                // processHelper(args, num_args);
+                if(multi == 1){
+                    commands = strtok_r(NULL, ";", &temp);
+                }
+
+                if(num_args == counter && multi == 0){
+                    break;
+                }
+
+        }
+
+
+
+
+        //     for(int i = 0; i < num_args; i++){
+                
+        //         processHelper(tempArgs, temp_num_args);
+                    
+        //             // if(specialFlag == 0){
+        //             //     processHelper(args, num_args);
+        //             // }
+
+        //             // else{
+        //             //     specialProcessHelper(args, num_args);
+        //             // }
+        //         }
+
+        //         // /bin/ls ; /bin/cat abc.txt
+                    
+                    
+        //         // if(strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0){
+        //         //     specialFlag = 1;
+        //         // }
+
+        //         // if(specialFlag == 0){
+        //         //     processHelper(args, num_args);
+        //         // }
+
+        //         // else{
+        //         //     specialProcessHelper(args, num_args);
+        //         // }
+
+        //     } 
+               
+        // }
 
         // else{
         //     errorHandler();
         // }
+        }
           
     }
 }
