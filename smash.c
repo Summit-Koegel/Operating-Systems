@@ -74,12 +74,9 @@ int redirection(char* cmd1[], char* cmd2[]){
             perror(cmd2[0]);	/* open failed */
             exit(1);
         }
-        printf("%s\n", cmd2[0]);
         dup2(newfd, 1);
         close(newfd);
-        printf("%s\n", cmd2[0]); 
         execv(cmd1[0], cmd1);
-        printf("%s\n", cmd1[0]);
         perror(cmd1[0]);
             
         
@@ -192,7 +189,7 @@ void processHelper(char **args, int num_args){
 
 void specialProcessHelper(char **args, int num_args){
 
-    int buffer = 100;
+    int buffer = 40;
     char* cmd1[buffer];
     char* cmd2[buffer];
 
@@ -243,7 +240,6 @@ int main(){
     int argc = 1;
     char* temp;
     int multi = 0;
-    int counter;
     
 
     
@@ -251,35 +247,38 @@ int main(){
     while(1){
         fprintf(stdout, "smash> ");
         fflush(stdout);
+        int counter = 0;
         input = getline(&c, &buffer, stdin);
 
         //char* comm;
 
         if(strchr(c, ';') != NULL)
         {
-            commands = strtok_r(c, ";", &temp);
+            c = strtok_r(c, ";", &temp);
             multi = 1;
         }
 
-        while(commands != NULL || multi == 0){
+        while(c != NULL || multi == 0){
             if(input != -1 && lexer(c, &args, &num_args) != -1){
 
                 for(int i = 0; i < num_args; i++){
                     if(strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0){
                         specialFlag = 1;
-                        specialProcessHelper(args, num_args);
-                    }
-
-                    if(specialFlag == 0){
-                        processHelper(args, num_args);
                     }
 
                     counter++;
                 }
-                
-                // processHelper(args, num_args);
+
+                if(specialFlag == 1){
+                    specialProcessHelper(args, num_args);
+                }
+
+                else{
+                    processHelper(args, num_args);
+                }            
+
                 if(multi == 1){
-                    commands = strtok_r(NULL, ";", &temp);
+                    c = strtok_r(NULL, ";", &temp);
                 }
 
                 if(num_args == counter && multi == 0){
