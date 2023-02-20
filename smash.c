@@ -286,17 +286,17 @@ void specialProcessHelper(char **args, int num_args){
         }
     }
 
-    for(int i = 0; i < num_args; i++){
+    for(int i = loop_marker; i < num_args; i++){
         // Piping
         if(strcmp(args[i], "|") == 0){
             pipingFlag = 1;
             pipeIndex = i;
-            for(int a = 0; a < i; a++){
+            for(int a = 0; a < i-loop_marker; a++){
                 cmd1[a] = malloc(sizeof(1000));
-                cmd1[a] = args[a];
+                cmd1[a] = args[a+loop_marker];
             }
 
-            for(int b = i; b < buffer; b++){
+            for(int b = i-loop_marker; b < buffer; b++){
                 cmd1[b] = NULL;
             }
 
