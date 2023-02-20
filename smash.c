@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+void specialProcessHelper(char **args, int num_args);
 
 void errorHandler(){
     char error_message[30] = "An error has occurred\n";
@@ -47,6 +48,9 @@ int forkRedirect(char **args, int num_args, int i){
         //inside child process
         // printf("Exiting from child, my id is %d and rc is %d\n", getpid(), rc);
         int exec_rc = execv(args[0], args);
+        errorHandler();
+        // TODO: exit or not??
+        exit(1);
         // int exec_rc = execv(args[0], args);
         // printf("Done with execv\n");
         
@@ -85,13 +89,63 @@ int redirection(char* cmd1[], char* cmd2[]){
 
     else{
         int status;
-        int wait_rc = waitpid(pid, &status, 0);
+        waitpid(pid, &status, 0);
     }
 
 
 	return 0;
     
 
+}
+
+// char *cat_args[] = {"/bin/ls", "-la", "/home/summit/private/537/P3", NULL};
+// char *grep_args[] = {"/bin/grep", "te", NULL};
+// pipeExample(cat_args, grep_args);
+void piping(char* cmd1[], char* cmd2[], int redirFlag, int numArgs2){
+
+    // make a pipe (fds go in pipefd[0] and pipefd[1])
+
+    int pid = fork();
+
+    if (pid == 0)
+    {
+        int pipefd[2];
+        pipe(pipefd);
+        int pid_grep = fork();
+        
+        if (pid_grep == 0)
+        {
+            // child gets here and handles "grep bob"
+            // replace standard input with input part of pipe
+            dup2(pipefd[0], 0);
+
+            close(pipefd[1]);
+
+            if(redirFlag == 1){
+                specialProcessHelper(cmd2, numArgs2);
+            }
+
+            else{
+                execv(cmd2[0], cmd2);
+            }
+            exit(1);
+        }
+        else
+        {
+            dup2(pipefd[1], 1);
+
+            close(pipefd[0]);
+
+            execv(cmd1[0], cmd1);
+            perror(cmd1[0]);
+            exit(1);
+        }
+    }
+    else
+    {
+        int status;
+        wait(&status);
+    }
 }
     
 /// description: Takes a line and splits it into args similar to how argc
@@ -133,8 +187,6 @@ int lexer(char *line, char ***args, int *num_args){ // Do I need to make a fix t
 
 void processHelper(char **args, int num_args){
 
-    
-
     char* builtIn [] = {"exit", "cd", "pwd", "loop"};
     int loop_times;
     
@@ -143,7 +195,7 @@ void processHelper(char **args, int num_args){
         // Exit
         if(strcmp(args[i], builtIn[0]) == 0){
             if(args[i+1] != NULL){
-                printf("Error with exit\n");
+                errorHandler();
             }
             exit(0);
         }
@@ -151,11 +203,13 @@ void processHelper(char **args, int num_args){
         // Change Directoring
         else if(strcmp(args[i], builtIn[1]) == 0){
             changeDir(args, num_args, i);
+            break;
         }
 
         // Print Working Directory
         else if(strcmp(args[i], builtIn[2]) == 0){
             printWD(args, num_args, i);
+            break;
         }
 
         // Loop
@@ -176,6 +230,8 @@ void processHelper(char **args, int num_args){
             else{
                 errorHandler();
             }
+
+            break;
             
         }
 
@@ -192,17 +248,32 @@ void specialProcessHelper(char **args, int num_args){
     int buffer = 40;
     char* cmd1[buffer];
     char* cmd2[buffer];
+    int redirectionFlag = 0;
+    int pipingFlag = 0;
+    int loopFlag = 0;
+    int loop_times = 0;
+    int loop_marker = 0;
+    int pipeIndex = 0;
 
     for(int i = 0; i < num_args; i++){
+        if(strcmp(args[i], "loop") == 0){
+            loopFlag = 1;
+            loop_times = atoi(args[i+1]);
+            loop_marker = 2;
+        }
+    }
+
+    for(int i = loop_marker; i < num_args; i++){
         // Redirection
         if(strcmp(args[i], ">") == 0){
-            for(int a = 0; a < i; a++){
+            redirectionFlag = 1;
+            for(int a = 0; a < i-loop_marker; a++){
                 cmd1[a] = malloc(sizeof(buffer));
-                cmd1[a] = args[a];
+                cmd1[a] = args[a+loop_marker];
                 //printf("%s\n", cmd1[a]);
             }
 
-            for(int b = i; b < buffer; b++){
+            for(int b = i-loop_marker; b < buffer; b++){
                 cmd1[b] = NULL;
             }
 
@@ -213,15 +284,64 @@ void specialProcessHelper(char **args, int num_args){
                 cmd2[b] = NULL;
             }
         }
-        
-
-        // Piping
-        // else if(strcmp(args[i], "|") == 0){
-        //     piping(args, num_args, i);
-        // }
     }
 
-    redirection(cmd1, cmd2);
+    for(int i = 0; i < num_args; i++){
+        // Piping
+        if(strcmp(args[i], "|") == 0){
+            pipingFlag = 1;
+            pipeIndex = i;
+            for(int a = 0; a < i; a++){
+                cmd1[a] = malloc(sizeof(1000));
+                cmd1[a] = args[a];
+            }
+
+            for(int b = i; b < buffer; b++){
+                cmd1[b] = NULL;
+            }
+
+            int c;
+            for(c = 0; c < num_args-i-1; c++){
+                cmd2[c] = malloc(sizeof(1000));
+                cmd2[c] = args[c+i+1];
+            }
+
+            cmd2[c] = NULL;
+        }
+    }
+    
+    if(loopFlag ==  1){
+        for(int i = 0; i < loop_times; i++){
+
+            if(redirectionFlag == 1 && pipingFlag == 1){
+                piping(cmd1, cmd2, redirectionFlag, num_args-pipeIndex-1);
+            }
+
+            else if(pipingFlag == 1){
+                piping(cmd1, cmd2, redirectionFlag, num_args-pipeIndex-1);
+            }
+
+            else{
+                redirection(cmd1, cmd2);
+            }
+        }
+    }
+
+    else{
+       if(redirectionFlag == 1 && pipingFlag == 1){
+            piping(cmd1, cmd2, redirectionFlag, num_args-pipeIndex-1);
+        }
+
+        else if(pipingFlag == 1){
+            piping(cmd1, cmd2, redirectionFlag, num_args-pipeIndex-1);
+        }
+
+        else{
+            redirection(cmd1, cmd2);
+        }
+    }
+    
+    
 }
         
 
@@ -236,7 +356,6 @@ int main(){
     size_t input;
     char** tempArgs = malloc(sizeof(buffer));
     int temp_num_args = 0;
-    int specialFlag = 0;
     int argc = 1;
     char* temp;
     int multi = 0;
@@ -248,6 +367,7 @@ int main(){
         fprintf(stdout, "smash> ");
         fflush(stdout);
         int counter = 0;
+        int specialFlag = 0;
         input = getline(&c, &buffer, stdin);
 
         //char* comm;
@@ -285,47 +405,15 @@ int main(){
                     break;
                 }
 
-        }
+            }
 
+            else{
+                errorHandler();
+            }
 
-
-
-        //     for(int i = 0; i < num_args; i++){
-                
-        //         processHelper(tempArgs, temp_num_args);
-                    
-        //             // if(specialFlag == 0){
-        //             //     processHelper(args, num_args);
-        //             // }
-
-        //             // else{
-        //             //     specialProcessHelper(args, num_args);
-        //             // }
-        //         }
-
-        //         // /bin/ls ; /bin/cat abc.txt
-                    
-                    
-        //         // if(strcmp(args[i], ">") == 0 || strcmp(args[i], "|") == 0){
-        //         //     specialFlag = 1;
-        //         // }
-
-        //         // if(specialFlag == 0){
-        //         //     processHelper(args, num_args);
-        //         // }
-
-        //         // else{
-        //         //     specialProcessHelper(args, num_args);
-        //         // }
-
-        //     } 
-               
-        // }
-
-        // else{
-        //     errorHandler();
-        // }
         }
           
     }
 }
+
+// /bin/cat test2.txt | /bin/sort  
